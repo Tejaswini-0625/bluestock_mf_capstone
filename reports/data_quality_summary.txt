@@ -1,0 +1,36 @@
+DATA QUALITY SUMMARY — Mutual Fund Analytics Project
+============================================================
+Generated : 2026-06-23 12:07:07
+
+Dataset              Check                                         Value           Status
+----------------------------------------------------------------------------------------------------
+fund_master          Duplicate scheme_code rows                    0               PASS
+fund_master          Total null values                             0               PASS
+nav_history          Negative NAV rows                             0               PASS
+nav_history          Zero NAV rows                                 0               PASS
+nav_history          Date range                                    2022-01-03 → 2026-05-29 INFO
+cross-dataset        AMFI code coverage in NAV history             100.0%          PASS
+
+
+AMFI Code Validation
+----------------------------------------
+Codes in fund_master       : 40
+Codes in nav_history       : 40
+Missing in nav_history     : 0
+Orphan codes in nav_history: 0
+
+✅ All fund_master scheme codes validated in nav_history.
+
+
+DATASET OVERVIEW
+----------------------------------------
+  fund_master              :     40 rows × 15 cols
+  nav_history              : 46,000 rows ×  3 cols
+  aum_by_fund_house        :     90 rows ×  5 cols
+  monthly_sip_inflows      :     48 rows ×  6 cols
+  category_inflows         :    144 rows ×  3 cols
+  industry_folio_count     :     21 rows ×  6 cols
+  scheme_performance       :     40 rows × 19 cols
+  investor_transactions    : 32,778 rows × 13 cols
+  portfolio_holdings       :    322 rows ×  8 cols
+  benchmark_indices        :  8,050 rows ×  3 cols

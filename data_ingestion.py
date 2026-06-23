@@ -27,16 +27,16 @@ for d in [PROCESSED_DIR, REPORTS_DIR]:
     os.makedirs(d, exist_ok=True)
 
 DATASETS = {
-    "fund_master":        "fund_master.csv",
-    "nav_history":        "nav_history.csv",
-    "portfolio_holdings": "portfolio_holdings.csv",
-    "sip_transactions":   "sip_transactions.csv",
-    "benchmark_returns":  "benchmark_returns.csv",
-    "expense_ratios":     "expense_ratios.csv",
-    "aum_monthly":        "aum_monthly.csv",
-    "dividend_history":   "dividend_history.csv",
-    "risk_metrics":       "risk_metrics.csv",
-    "investor_profile":   "investor_profile.csv",
+    "fund_master":           "01_fund_master.csv",
+    "nav_history":           "02_nav_history.csv",
+    "aum_by_fund_house":     "03_aum_by_fund_house.csv",
+    "monthly_sip_inflows":   "04_monthly_sip_inflows.csv",
+    "category_inflows":      "05_category_inflows.csv",
+    "industry_folio_count":  "06_industry_folio_count.csv",
+    "scheme_performance":    "07_scheme_performance.csv",
+    "investor_transactions": "08_investor_transactions.csv",
+    "portfolio_holdings":    "09_portfolio_holdings.csv",
+    "benchmark_indices":     "10_benchmark_indices.csv",
 }
 
 SEPARATOR = "=" * 65
@@ -154,10 +154,11 @@ def explore_fund_master(df: pd.DataFrame) -> None:
         count = (df["sub_category"] == sub).sum()
         print(f"  • {sub:<25} → {count} scheme/s")
 
-    print("\n⚠  Risk Grades:")
-    for rg in df["risk_grade"].unique():
-        count = (df["risk_grade"] == rg).sum()
-        print(f"  • {rg:<25} → {count} scheme/s")
+    print("\n⚠  Risk Categories:")
+    risk_col = "risk_category" if "risk_category" in df.columns else "risk_grade"
+    for rg in df[risk_col].unique():
+        count = (df[risk_col] == rg).sum()
+        print(f"  • {str(rg):<25} → {count} scheme/s")
 
     print("\n📌 AMFI Scheme Code Structure:")
     print("""
@@ -177,7 +178,8 @@ def explore_fund_master(df: pd.DataFrame) -> None:
 
   Sample codes in this dataset:
 """)
-    sample = df[["scheme_code", "scheme_name", "fund_house"]].head(6)
+    code_col = "amfi_code" if "amfi_code" in df.columns else "scheme_code"
+    sample = df[[code_col, "scheme_name", "fund_house"]].head(6)
     print(sample.to_string(index=False))
 
 
@@ -194,8 +196,12 @@ def validate_amfi_codes(fund_master: pd.DataFrame,
     print("  TASK 7 — AMFI CODE VALIDATION & DATA QUALITY")
     print(f"{'#'*65}\n")
 
-    master_codes  = set(fund_master["scheme_code"].unique())
-    history_codes = set(nav_history["scheme_code"].unique())
+    # detect correct code column name
+    master_code_col  = "amfi_code" if "amfi_code" in fund_master.columns else "scheme_code"
+    history_code_col = "amfi_code" if "amfi_code" in nav_history.columns else "scheme_code"
+
+    master_codes  = set(fund_master[master_code_col].unique())
+    history_codes = set(nav_history[history_code_col].unique())
 
     missing_in_history = master_codes - history_codes
     orphan_in_history  = history_codes - master_codes
@@ -208,7 +214,7 @@ def validate_amfi_codes(fund_master: pd.DataFrame,
     if missing_in_history:
         print(f"\n  ⚠  Codes in fund_master NOT found in nav_history:")
         for code in sorted(missing_in_history):
-            name = fund_master.loc[fund_master["scheme_code"]==code, "scheme_name"].values
+            name = fund_master.loc[fund_master[master_code_col]==code, "scheme_name"].values
             print(f"      {code}  —  {name[0] if len(name) else 'Unknown'}")
     else:
         print("\n  ✅ All fund_master codes have NAV history.")
@@ -217,7 +223,7 @@ def validate_amfi_codes(fund_master: pd.DataFrame,
     checks = []
 
     # fund_master
-    fm_dupes = fund_master.duplicated(subset="scheme_code").sum()
+    fm_dupes = fund_master.duplicated(subset=master_code_col).sum()
     checks.append(("fund_master", "Duplicate scheme_code rows", fm_dupes,
                    "PASS" if fm_dupes == 0 else "FAIL"))
 
@@ -225,18 +231,21 @@ def validate_amfi_codes(fund_master: pd.DataFrame,
     checks.append(("fund_master", "Total null values", fm_null,
                    "PASS" if fm_null == 0 else "WARNING"))
 
-    # nav_history
-    nav_neg = (nav_history["nav"] < 0).sum()
+    # nav_history — detect nav and date columns
+    nav_col  = "nav" if "nav" in nav_history.columns else nav_history.select_dtypes("number").columns[0]
+    date_col = "date" if "date" in nav_history.columns else "nav_date"
+
+    nav_neg = (nav_history[nav_col] < 0).sum()
     checks.append(("nav_history", "Negative NAV rows", nav_neg,
                    "PASS" if nav_neg == 0 else "FAIL"))
 
-    nav_zero = (nav_history["nav"] == 0).sum()
+    nav_zero = (nav_history[nav_col] == 0).sum()
     checks.append(("nav_history", "Zero NAV rows", nav_zero,
                    "PASS" if nav_zero == 0 else "FAIL"))
 
     # nav_history date range
-    nav_history["date"] = pd.to_datetime(nav_history["date"])
-    date_range = f"{nav_history['date'].min().date()} → {nav_history['date'].max().date()}"
+    nav_history[date_col] = pd.to_datetime(nav_history[date_col], errors="coerce")
+    date_range = f"{nav_history[date_col].min().date()} → {nav_history[date_col].max().date()}"
     checks.append(("nav_history", "Date range", date_range, "INFO"))
 
     # AMFI code coverage
@@ -281,7 +290,7 @@ def validate_amfi_codes(fund_master: pd.DataFrame,
 
     # Save to file
     report_path = os.path.join(REPORTS_DIR, "data_quality_summary.txt")
-    with open(report_path, "w") as f:
+    with open(report_path, "w", encoding="utf-8") as f:
         f.write(report_text)
     print(f"\n📄 Report saved → {report_path}")
 
